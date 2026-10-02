@@ -681,3 +681,77 @@ with scoring_tab:
                 mime="text/csv",
             )
 
+with drift_tab:
+    st.write("")
+    section(
+        "Input drift",
+        "Compares the distribution of each feature in this file with the training "
+        "baseline using the Kolmogorov-Smirnov test.",
+    )
+    if st.button("Run drift check", key="drift_button"):
+        with st.spinner("Comparing distributions"):
+            try:
+                st.session_state["drift"] = check_drift(data)
+            except requests.HTTPError as exc:
+                st.session_state["drift"] = None
+                st.error(
+                    f"The drift service rejected the request "
+                    f"(HTTP {exc.response.status_code})."
+                )
+            except requests.RequestException as exc:
+                st.session_state["drift"] = None
+                st.error(f"The drift service at {API_URL} could not be reached: {exc}")
+
+    drift = st.session_state.get("drift")
+    if drift is None:
+        st.info("Select Run drift check to compare this file with the baseline.")
+    else:
+        drifted = int((drift["Status"] == "Drift detected").sum())
+        if drifted:
+            status_line(
+                f"{drifted} of {len(drift)} features show drift from the baseline.", RISK
+            )
+        else:
+            status_line(
+                f"All {len(drift)} features are consistent with the baseline.", STABLE
+            )
+
+        drift_config = {
+            "KS statistic": st.column_config.ProgressColumn(
+                "KS statistic", min_value=0.0, max_value=1.0, format="%.4f"
+            ),
+            "p-value": st.column_config.NumberColumn(format="%.4g"),
+        }
+        if "PSI" in drift.columns:
+            drift_config["PSI"] = st.column_config.NumberColumn(format="%.4f")
+
+        st.dataframe(
+            drift,
+            use_container_width=True,
+            hide_index=True,
+            height=420,
+            column_config=drift_config,
+        )
+
+with explain_tab:
+    st.write("")
+    section(
+        "Feature influence",
+        "SHAP values show how much each feature pushes a prediction toward fraud "
+        "or toward a legitimate transaction.",
+    )
+    figures = [
+        ("Global feature importance", REPORT_DIR / "shap_summary.png"),
+        ("Single prediction explanation", REPORT_DIR / "shap_local.png"),
+    ]
+    available = [(title, path) for title, path in figures if path.exists()]
+    if not available:
+        st.info(
+            f"No SHAP figures were found in {REPORT_DIR}. "
+            "Run the explanation step of the training pipeline to generate them."
+        )
+    else:
+        for column, (title, path) in zip(st.columns(len(available), gap="large"), available):
+            with column:
+                st.markdown(f"**{title}**")
+                st.image(str(path), use_container_width=True)
