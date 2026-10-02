@@ -6,6 +6,10 @@ from src.predict import predict_single, predict_batch
 from src.drift import detect_drift
 import pandas as pd
 from src.config import DATA_PATH
+try:
+    from src.alert import send_alert
+except ImportError:
+    send_alert = lambda msg: None
 
 app = FastAPI(title="Fraud Detection API")
 
@@ -55,6 +59,11 @@ def check_drift(txs: List[Transaction], api_key: str = Depends(verify_api_key)) 
         df_train = pd.read_csv(DATA_PATH).sample(n=1000)
         features = ["Amount", "Time"]
         report = detect_drift(df_train, df_new, features)
+        
+        drifted_features = [f for f, stats in report.items() if stats.get("drift_detected")]
+        if drifted_features:
+            send_alert(f"Data Drift Detected in features: {', '.join(drifted_features)}")
+            
         return DriftReportResponse(report=report)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -62,6 +71,7 @@ def check_drift(txs: List[Transaction], api_key: str = Depends(verify_api_key)) 
 @app.post("/retrain")
 def retrain_model(api_key: str = Depends(verify_api_key)):
     try:
+        send_alert("Background Retraining Pipeline Triggered!")
         # Trigger the retraining pipeline in the background
         subprocess.Popen(["python", "src/train_pipeline.py"])
         return {"status": "Retraining started"}
