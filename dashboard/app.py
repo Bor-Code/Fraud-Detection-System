@@ -1,4 +1,4 @@
-﻿import html
+import html
 import os
 from pathlib import Path
 
@@ -350,8 +350,9 @@ def service_online() -> bool:
 
 
 def call_api(endpoint: str, records: list[dict]) -> dict:
+    headers = {"X-API-Key": "super-secret-enterprise-key"}
     response = requests.post(
-        f"{API_URL}{endpoint}", json=records, timeout=REQUEST_TIMEOUT
+        f"{API_URL}{endpoint}", json=records, headers=headers, timeout=REQUEST_TIMEOUT
     )
     response.raise_for_status()
     return response.json()
