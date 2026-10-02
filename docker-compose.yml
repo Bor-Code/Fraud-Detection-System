@@ -5,17 +5,35 @@ services:
     ports:
       - "8000:8000"
     command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      API_KEY: ${API_KEY}
+      DATABASE_URL: ${DATABASE_URL}
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
     volumes:
       - .:/app
+    depends_on:
+      - db
+      - minio
+
   dashboard:
     build: .
     ports:
       - "8501:8501"
     command: ["streamlit", "run", "dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    environment:
+      API_URL: http://api:8000
+      API_KEY: ${API_KEY}
+      REPORT_DIR: reports
     volumes:
       - .:/app
+      - ./reports:/app/reports:ro
     depends_on:
       - api
+
   mlflow:
     build: .
     ports:
@@ -23,20 +41,30 @@ services:
     command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000"]
     volumes:
       - .:/app
+
   db:
     image: postgres:15
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: fraud_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     ports:
       - "9000:9000"
       - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+volumes:
+  pgdata:
+  miniodata:
