@@ -559,3 +559,125 @@ with st.expander("Preview first rows"):
 st.write("")
 scoring_tab, drift_tab, explain_tab = st.tabs(["Scoring", "Drift", "Explanation"])
 
+with scoring_tab:
+    st.write("")
+    section(
+        "Risk scoring",
+        "Each transaction receives a fraud probability. Transactions above the "
+        "model decision threshold are flagged for review.",
+    )
+    if st.button("Score transactions", key="score_button"):
+        with st.spinner("Scoring transactions"):
+            try:
+                st.session_state["scored"] = score_transactions(data)
+            except requests.HTTPError as exc:
+                st.session_state["scored"] = None
+                st.error(
+                    f"The scoring service rejected the request "
+                    f"(HTTP {exc.response.status_code}). Check that the columns match "
+                    f"the training schema."
+                )
+            except requests.RequestException as exc:
+                st.session_state["scored"] = None
+                st.error(f"The scoring service at {API_URL} could not be reached: {exc}")
+
+    scored = st.session_state.get("scored")
+    if scored is None:
+        st.info("Select Score transactions to run the model on this file.")
+    else:
+        flagged_mask = scored["Decision"] == "Flagged"
+        flagged = int(flagged_mask.sum())
+        has_amount = "Amount" in scored.columns
+        metric_strip(
+            [
+                ("Scored", f"{len(scored):,}", False),
+                ("Flagged", f"{flagged:,}", flagged > 0),
+                ("Flag rate", f"{flagged / len(scored):.2%}", False),
+                (
+                    "Amount flagged",
+                    f"{scored.loc[flagged_mask, 'Amount'].sum():,.2f}" if has_amount else "n/a",
+                    flagged > 0 and has_amount,
+                ),
+            ]
+        )
+
+        left, right = st.columns([3, 2], gap="large")
+        with left:
+            section(
+                "Score distribution",
+                "Legitimate transactions cluster near zero. Mass at the high end is "
+                "what the model considers likely fraud.",
+            )
+            st.altair_chart(risk_histogram(scored["Risk score"]), use_container_width=True)
+        with right:
+            section("Risk bands", "Transactions grouped by score.")
+            band_config = {
+                "Transactions": st.column_config.NumberColumn(format="%d"),
+                "Share": st.column_config.ProgressColumn(
+                    "Share", min_value=0.0, max_value=1.0, format="percent"
+                ),
+            }
+            if has_amount:
+                band_config["Amount"] = st.column_config.NumberColumn(format="%.2f")
+            st.dataframe(
+                risk_bands(scored),
+                use_container_width=True,
+                hide_index=True,
+                column_config=band_config,
+            )
+
+        st.write("")
+        section(
+            "Review queue",
+            "Sorted by risk score, highest first. Select a row to inspect the transaction.",
+        )
+        f1, f2 = st.columns([1, 2], gap="large")
+        view = f1.radio("Show", ["Flagged only", "All transactions"], horizontal=True)
+        minimum = f2.slider("Minimum risk score", 0.0, 1.0, 0.0, 0.01)
+
+        shown = scored[scored["Risk score"] >= minimum]
+        if view == "Flagged only":
+            shown = shown[shown["Decision"] == "Flagged"]
+        shown = order_columns(shown.sort_values("Risk score", ascending=False))
+        visible = shown.head(TABLE_ROW_LIMIT).reset_index(drop=True)
+
+        if visible.empty:
+            st.info("No transactions match the current filters.")
+        else:
+            table_col, detail_col = st.columns([3, 2], gap="large")
+            with table_col:
+                event = st.dataframe(
+                    style_decisions(visible),
+                    use_container_width=True,
+                    hide_index=True,
+                    height=420,
+                    on_select="rerun",
+                    selection_mode="single-row",
+                    column_config={
+                        "Risk score": st.column_config.ProgressColumn(
+                            "Risk score", min_value=0.0, max_value=1.0, format="%.4f"
+                        ),
+                    },
+                )
+                st.caption(f"Showing {len(visible):,} of {len(shown):,} matching rows.")
+            with detail_col:
+                selected = event.selection.rows if event is not None else []
+                if selected:
+                    st.markdown("**Transaction detail**")
+                    st.dataframe(
+                        transaction_detail(visible.iloc[selected[0]]),
+                        use_container_width=True,
+                        hide_index=True,
+                        height=420,
+                    )
+                else:
+                    st.markdown("**Transaction detail**")
+                    st.caption("No row selected.")
+
+            st.download_button(
+                "Download all results as CSV",
+                data=scored.to_csv(index=False).encode("utf-8"),
+                file_name="scored_transactions.csv",
+                mime="text/csv",
+            )
+
