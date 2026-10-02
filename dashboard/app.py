@@ -9,6 +9,8 @@ import requests
 import streamlit as st
 
 API_URL = os.environ.get("API_URL", "http://api:8000")
+API_KEY = os.environ.get("API_KEY", "")
+API_KEY_HEADER = "X-API-Key"
 REPORT_DIR = Path(os.environ.get("REPORT_DIR", "reports"))
 REQUEST_TIMEOUT = 120
 LABEL_COLUMN = "Class"
@@ -341,18 +343,24 @@ for token, value in {
 st.markdown(STYLE, unsafe_allow_html=True)
 
 
+def auth_headers() -> dict[str, str]:
+    return {API_KEY_HEADER: API_KEY} if API_KEY else {}
+
+
 @st.cache_data(ttl=15, show_spinner=False)
 def service_online() -> bool:
     try:
-        return requests.get(f"{API_URL}/health", timeout=3).ok
+        return requests.get(f"{API_URL}/health", headers=auth_headers(), timeout=3).ok
     except requests.RequestException:
         return False
 
 
 def call_api(endpoint: str, records: list[dict]) -> dict:
-    headers = {"X-API-Key": "super-secret-enterprise-key"}
     response = requests.post(
-        f"{API_URL}{endpoint}", json=records, headers=headers, timeout=REQUEST_TIMEOUT
+        f"{API_URL}{endpoint}",
+        json=records,
+        headers=auth_headers(),
+        timeout=REQUEST_TIMEOUT,
     )
     response.raise_for_status()
     return response.json()
@@ -573,6 +581,12 @@ with scoring_tab:
                 st.session_state["scored"] = score_transactions(data)
             except requests.HTTPError as exc:
                 st.session_state["scored"] = None
+                if exc.response.status_code in (401, 403):
+                    st.error(
+                        "The scoring service refused the API key. Set the API_KEY "
+                        "environment variable of the dashboard to a valid key."
+                    )
+                    st.stop()
                 st.error(
                     f"The scoring service rejected the request "
                     f"(HTTP {exc.response.status_code}). Check that the columns match "
@@ -695,6 +709,12 @@ with drift_tab:
                 st.session_state["drift"] = check_drift(data)
             except requests.HTTPError as exc:
                 st.session_state["drift"] = None
+                if exc.response.status_code in (401, 403):
+                    st.error(
+                        "The drift service refused the API key. Set the API_KEY "
+                        "environment variable of the dashboard to a valid key."
+                    )
+                    st.stop()
                 st.error(
                     f"The drift service rejected the request "
                     f"(HTTP {exc.response.status_code})."
@@ -743,7 +763,7 @@ with explain_tab:
     )
     figures = [
         ("Global feature importance", REPORT_DIR / "shap_summary.png"),
-        ("Single prediction explanation", REPORT_DIR / "shap_local.png"),
+        ("Single prediction explanation", REPORT_DIR / "shap_single.png"),
     ]
     available = [(title, path) for title, path in figures if path.exists()]
     if not available:
