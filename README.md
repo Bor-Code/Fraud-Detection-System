@@ -179,6 +179,11 @@ The dashboard is built for analysts who review flagged transactions.
 - SHAP figures for global importance and single prediction explanations.
 - Service status indicator based on the health endpoint.
 
+![Transaction Upload](screenshots/1.png)
+![Data Preview](screenshots/2.png)
+![Risk Scoring](screenshots/3.png)
+![Drift Report](screenshots/4.png)
+
 The interface uses IBM Plex Sans and a fixed light theme defined in `.streamlit/config.toml` and the dashboard stylesheet.
 
 ## Model lifecycle
