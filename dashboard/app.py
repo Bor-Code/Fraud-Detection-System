@@ -16,7 +16,7 @@ REQUEST_TIMEOUT = 120
 LABEL_COLUMN = "Class"
 TABLE_ROW_LIMIT = 1000
 BAND_EDGES = [-0.001, 0.2, 0.5, 1.0]
-BAND_LABELS = ["Low (below 0.20)", "Elevated (0.20 to 0.50)", "High (above 0.50)"]
+BAND_LABELS = ["Low", "Elevated", "High"]
 
 INK = "#14181F"
 MUTED = "#5B6573"
@@ -441,7 +441,7 @@ def risk_histogram(scores: pd.Series) -> alt.Chart:
                 alt.Tooltip("Transactions:Q", format=","),
             ],
         )
-        .properties(height=260)
+        .properties(height=260, padding={"left": 5, "right": 24, "top": 5, "bottom": 5})
         .configure_view(strokeWidth=0)
         .configure(background="transparent")
     )
@@ -616,7 +616,7 @@ with scoring_tab:
             ]
         )
 
-        left, right = st.columns([3, 2], gap="large")
+        left, right = st.columns([5, 4], gap="large")
         with left:
             section(
                 "Score distribution",
@@ -625,7 +625,7 @@ with scoring_tab:
             )
             st.altair_chart(risk_histogram(scored["Risk score"]), use_container_width=True)
         with right:
-            section("Risk bands", "Transactions grouped by score.")
+            section("Risk bands", "Low is below 0.20, elevated is 0.20 to 0.50, high is above 0.50.")
             band_config = {
                 "Transactions": st.column_config.NumberColumn(format="%d"),
                 "Share": st.column_config.ProgressColumn(
@@ -656,7 +656,12 @@ with scoring_tab:
         shown = order_columns(shown.sort_values("Risk score", ascending=False))
         visible = shown.head(TABLE_ROW_LIMIT).reset_index(drop=True)
 
-        if visible.empty:
+        if visible.empty and flagged == 0 and view == "Flagged only":
+            st.info(
+                "The model flagged no transactions in this file. "
+                "Select All transactions to browse every scored row."
+            )
+        elif visible.empty:
             st.info("No transactions match the current filters.")
         else:
             table_col, detail_col = st.columns([3, 2], gap="large")
@@ -763,7 +768,7 @@ with explain_tab:
     )
     figures = [
         ("Global feature importance", REPORT_DIR / "shap_summary.png"),
-        ("Single prediction explanation", REPORT_DIR / "shap_single.png"),
+        ("Single prediction explanation", REPORT_DIR / "shap_local.png"),
     ]
     available = [(title, path) for title, path in figures if path.exists()]
     if not available:

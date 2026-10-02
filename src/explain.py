@@ -14,7 +14,7 @@ def plot_shap_summary(model: Any, X: pd.DataFrame, filename: str = "shap_summary
     plt.savefig(path, bbox_inches="tight")
     plt.close()
 
-def plot_shap_single(model: Any, X: pd.DataFrame, idx: int, filename: str = "shap_single.png") -> None:
+def plot_shap_single(model: Any, X: pd.DataFrame, idx: int, filename: str = "shap_local.png") -> None:
     explainer = shap.Explainer(model, X)
     shap_values = explainer(X.iloc[[idx]])
     plt.figure()
