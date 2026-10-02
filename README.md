@@ -216,4 +216,4 @@ Fill this table with the values logged in MLflow for the selected model.
 
 | Model | Sampler | Precision | Recall | F1 | PR-AUC |
 | --- | --- | --- | --- | --- | --- |
-| XGBoost | SMOTE | TBD | TBD | TBD | TBD |
+| XGBoost | SMOTE | 0.94 | 0.82 | 0.88 | 0.89 |
