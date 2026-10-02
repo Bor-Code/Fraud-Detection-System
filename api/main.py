@@ -8,6 +8,8 @@ from src.config import DATA_PATH
 
 app = FastAPI(title="Fraud Detection API")
 
+import subprocess
+
 try:
     from src.db import save_prediction
 except ImportError:
@@ -44,5 +46,14 @@ def check_drift(txs: List[Transaction]) -> DriftReportResponse:
         features = ["Amount", "Time"]
         report = detect_drift(df_train, df_new, features)
         return DriftReportResponse(report=report)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/retrain")
+def retrain_model():
+    try:
+        # Trigger the retraining pipeline in the background
+        subprocess.Popen(["python", "src/train_pipeline.py"])
+        return {"status": "Retraining started"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
