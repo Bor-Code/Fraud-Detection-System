@@ -8,14 +8,21 @@ from src.config import DATA_PATH
 
 app = FastAPI(title="Fraud Detection API")
 
+try:
+    from src.db import save_prediction
+except ImportError:
+    save_prediction = lambda tx, prob, pred: None
+
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
-@app.post("/predict", response_model=PredictionResponse)
-def predict(tx: Transaction) -> PredictionResponse:
+@app.post("/predict/single", response_model=PredictionResponse)
+def predict_single_transaction(tx: Transaction) -> PredictionResponse:
     try:
-        res = predict_single(tx.model_dump())
+        tx_dict = tx.model_dump()
+        res = predict_single(tx_dict)
+        save_prediction(tx_dict, res["probability"], res["prediction"])
         return PredictionResponse(**res)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
