@@ -1,8 +1,9 @@
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.neural_network import MLPClassifier
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
-from typing import Any
+from typing import Any, Dict, Callable
 from src.config import SEED
 
 def get_logistic_regression(**kwargs: Any) -> LogisticRegression:
@@ -24,3 +25,16 @@ def get_lightgbm(**kwargs: Any) -> LGBMClassifier:
     params = {"random_state": SEED, "n_estimators": 100}
     params.update(kwargs)
     return LGBMClassifier(**params)
+
+def get_mlp(**kwargs: Any) -> MLPClassifier:
+    params = {"random_state": SEED, "max_iter": 500}
+    params.update(kwargs)
+    return MLPClassifier(**params)
+
+MODEL_REGISTRY: Dict[str, Callable[..., Any]] = {
+    "lr": get_logistic_regression,
+    "rf": get_random_forest,
+    "xgb": get_xgboost,
+    "lgbm": get_lightgbm,
+    "mlp": get_mlp
+}
