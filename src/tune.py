@@ -4,8 +4,10 @@ from typing import Dict, Any
 import mlflow
 from src.models import MODEL_REGISTRY
 from src.evaluate import evaluate_predictions
-from src.config import SEED
+from src.config import SEED, MLFLOW_TRACKING_URI
 
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+mlflow.set_experiment("fraud_detection")
 def objective_xgb(trial: optuna.Trial, X_train: pd.DataFrame, y_train: pd.Series, X_val: pd.DataFrame, y_val: pd.Series) -> float:
     params = {
         "n_estimators": trial.suggest_int("n_estimators", 50, 200),
